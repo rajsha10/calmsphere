@@ -25,7 +25,7 @@ export default function HomePage() {
         {/* Hero Section */}
         <div className="text-center mb-20">
           <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500 bg-clip-text text-transparent">
-            Welcome to MindMate
+            Welcome to CalmSphere
           </h1>
           <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
             Your gentle companion for mental wellness and spiritual growth. Find peace, clarity, and healing in this
@@ -98,7 +98,7 @@ export default function HomePage() {
             Ready to nurture your mind and soul?
           </h2>
           <p className="text-lg text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
-            Join thousands who have found peace and clarity through MindMate. Your journey to mental wellness starts
+            Join thousands who have found peace and clarity through CalmSphere. Your journey to mental wellness starts
             with a single step.
           </p>
           <Link href="/signup">

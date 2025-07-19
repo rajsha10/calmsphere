@@ -10,6 +10,14 @@ const JournalEntrySchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  prompt: {
+    type: String,
+    default: null,
+  },
+  geminiComment: {
+    type: String,
+    default: null,
+  },
   mood: {
     type: String,
     enum: ["very-sad", "sad", "neutral", "happy", "very-happy"],

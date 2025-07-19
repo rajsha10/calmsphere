@@ -7,44 +7,34 @@ import User from "@/lib/models/User"
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("Journal POST API called")
-
     const session = await getServerSession(authOptions)
-    console.log("Session:", session)
 
     if (!session?.user?.email) {
-      console.log("No session or email found")
       return NextResponse.json({ error: "Unauthorized - Please log in" }, { status: 401 })
     }
 
-    const { content } = await request.json()
-    console.log("Content received:", content?.substring(0, 50) + "...")
+    const { content, prompt, geminiComment } = await request.json()
 
     if (!content || content.trim().length === 0) {
       return NextResponse.json({ error: "Content is required" }, { status: 400 })
     }
 
     // Connect to MongoDB
-    console.log("Connecting to MongoDB...")
     await connectDB()
 
     // Find user by email
-    console.log("Finding user with email:", session.user.email)
     const user = await User.findOne({ email: session.user.email })
     if (!user) {
-      console.log("User not found in database")
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    console.log("User found:", user._id)
-
-    // Create journal entry
+    // Create journal entry with the pre-generated Gemini comment from frontend
     const journalEntry = await JournalEntry.create({
       userId: user._id,
       content: content.trim(),
+      prompt: prompt || null,
+      geminiComment: geminiComment || null,
     })
-
-    console.log("Journal entry created:", journalEntry._id)
 
     return NextResponse.json({
       success: true,
@@ -52,6 +42,8 @@ export async function POST(request: NextRequest) {
       entry: {
         _id: journalEntry._id,
         content: journalEntry.content,
+        prompt: journalEntry.prompt,
+        geminiComment: journalEntry.geminiComment,
         createdAt: journalEntry.createdAt,
       },
     })
@@ -69,13 +61,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    console.log("Journal GET API called")
-
     const session = await getServerSession(authOptions)
-    console.log("Session:", session)
 
     if (!session?.user?.email) {
-      console.log("No session or email found")
       return NextResponse.json({ error: "Unauthorized - Please log in" }, { status: 401 })
     }
 
@@ -88,18 +76,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    // Get user's journal entries
+    // Get user's journal entries with prompts and Gemini comments
     const entries = await JournalEntry.find({ userId: user._id })
       .sort({ createdAt: -1 })
-      .select("_id content createdAt")
-
-    console.log(`Found ${entries.length} entries for user`)
+      .select("_id content prompt geminiComment createdAt")
 
     return NextResponse.json({
       success: true,
       entries: entries.map((entry) => ({
         _id: entry._id,
         content: entry.content,
+        prompt: entry.prompt,
+        geminiComment: entry.geminiComment,
         createdAt: entry.createdAt,
       })),
     })

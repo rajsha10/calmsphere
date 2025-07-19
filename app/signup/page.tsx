@@ -87,7 +87,7 @@ export default function SignupPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
-            Join MindMate
+            Join CalmSphere
           </CardTitle>
           <p className="text-gray-600 dark:text-gray-400 mt-2">Begin your journey to mental wellness</p>
         </CardHeader>

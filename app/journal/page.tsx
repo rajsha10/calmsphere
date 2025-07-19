@@ -18,6 +18,9 @@ import {
   X,
   Check,
   AlertCircle,
+  Bot,
+  MessageCircle,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -38,6 +41,8 @@ const journalPrompts = [
 interface JournalEntry {
   _id: string
   content: string
+  prompt?: string
+  geminiComment?: string
   createdAt: string
 }
 
@@ -54,6 +59,11 @@ export default function JournalPage() {
   const [showNewEntry, setShowNewEntry] = useState(false)
   const [wordCount, setWordCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  
+  // New states for AI comment generation
+  const [isGeneratingComment, setIsGeneratingComment] = useState(false)
+  const [generatedComment, setGeneratedComment] = useState("")
+  const [showCommentGeneration, setShowCommentGeneration] = useState(false)
 
   useEffect(() => {
     document.body.classList.add("page-transition")
@@ -114,6 +124,59 @@ export default function JournalPage() {
     }
   }
 
+  const generateAIComment = async (content: string, prompt?: string) => {
+    setIsGeneratingComment(true)
+    setShowCommentGeneration(true)
+    setGeneratedComment("")
+    
+    try {
+      // Simulate the AI thinking process with some encouraging messages
+      const thinkingMessages = [
+        "Reading your thoughts with care...",
+        "Reflecting on your words...", 
+        "Preparing a thoughtful response...",
+        "Almost ready with some support..."
+      ]
+      
+      let messageIndex = 0
+      const thinkingInterval = setInterval(() => {
+        if (messageIndex < thinkingMessages.length) {
+          setGeneratedComment(thinkingMessages[messageIndex])
+          messageIndex++
+        }
+      }, 1000)
+      
+      // Make the actual API call to generate comment
+      const response = await fetch("/api/journal/generate-comment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          content: content.trim(),
+          prompt: prompt,
+        }),
+      })
+      
+      const data = await response.json()
+      
+      clearInterval(thinkingInterval)
+      
+      if (response.ok) {
+        setGeneratedComment(data.comment)
+        return data.comment
+      } else {
+        throw new Error(data.error || "Failed to generate comment")
+      }
+    } catch (error) {
+      console.error("Error generating comment:", error)
+      setGeneratedComment("Thank you for sharing your thoughts. Your reflections are valuable and I appreciate you taking the time to journal today. 💙")
+      return "Thank you for sharing your thoughts. Your reflections are valuable and I appreciate you taking the time to journal today. 💙"
+    } finally {
+      setIsGeneratingComment(false)
+    }
+  }
+
   const handleSaveNew = async () => {
     if (!newEntry.trim()) return
 
@@ -121,7 +184,11 @@ export default function JournalPage() {
     setError(null)
 
     try {
+      console.log("Generating AI comment first...")
+      const aiComment = await generateAIComment(newEntry, currentPrompt)
+      console.log("Generated comment:", aiComment)
       console.log("Saving new entry...")
+      
       console.log("Session status:", status)
       console.log("Session data:", session)
 
@@ -130,7 +197,11 @@ export default function JournalPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ content: newEntry }),
+        body: JSON.stringify({
+          content: newEntry,
+          prompt: currentPrompt,
+          geminiComment: aiComment,
+        }),
       })
 
       console.log("Save response status:", response.status)
@@ -142,6 +213,10 @@ export default function JournalPage() {
         setEntries([data.entry, ...entries])
         setNewEntry("")
         setShowNewEntry(false)
+        setShowCommentGeneration(false)
+        setGeneratedComment("")
+        // Get a new prompt for next time
+        getNewPrompt()
         alert(data.message)
       } else {
         console.error("Save failed:", data)
@@ -169,17 +244,39 @@ export default function JournalPage() {
 
     try {
       setError(null)
+      
+      // Find the entry to get the prompt
+      const existingEntry = entries.find(e => e._id === entryId)
+      
+      // Generate new AI comment for edited content
+      const aiComment = await generateAIComment(editContent, existingEntry?.prompt)
+      
       const response = await fetch(`/api/journal/${entryId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: editContent }),
+        body: JSON.stringify({ 
+          content: editContent,
+          geminiComment: aiComment 
+        }),
       })
 
       const data = await response.json()
       if (response.ok) {
-        setEntries(entries.map((entry) => (entry._id === entryId ? { ...entry, content: editContent } : entry)))
+        setEntries(
+          entries.map((entry) =>
+            entry._id === entryId
+              ? {
+                  ...entry,
+                  content: editContent,
+                  geminiComment: aiComment,
+                }
+              : entry,
+          ),
+        )
         setEditingEntry(null)
         setEditContent("")
+        setShowCommentGeneration(false)
+        setGeneratedComment("")
         alert(data.message)
       } else {
         setError(data.error || "Failed to update entry")
@@ -264,7 +361,7 @@ export default function JournalPage() {
             Your Sacred Journal
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-300">
-            A safe space for your thoughts, feelings, and reflections
+            A safe space for your thoughts, feelings, and reflections with AI companion support
           </p>
         </div>
 
@@ -336,6 +433,12 @@ export default function JournalPage() {
                     {entries.filter((entry) => new Date(entry.createdAt).getMonth() === new Date().getMonth()).length}
                   </span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">AI Comments</span>
+                  <span className="font-semibold text-blue-600 dark:text-blue-400">
+                    {entries.filter((entry) => entry.geminiComment).length}
+                  </span>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -365,6 +468,15 @@ export default function JournalPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Show current prompt */}
+                  <div className="bg-gradient-to-r from-pink-50 to-purple-50 dark:from-pink-900/20 dark:to-purple-900/20 p-4 rounded-lg border border-pink-200 dark:border-purple-700">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Lightbulb className="h-4 w-4 text-yellow-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Prompt:</span>
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 italic">"{currentPrompt}"</p>
+                  </div>
+
                   <Textarea
                     value={newEntry}
                     onChange={(e) => setNewEntry(e.target.value)}
@@ -372,15 +484,38 @@ export default function JournalPage() {
                     className="min-h-[300px] glow-hover border-pink-200 dark:border-purple-700 focus:border-pink-400 dark:focus:border-purple-500 resize-none text-base leading-relaxed"
                   />
 
+                  {/* AI Comment Generation Display */}
+                  {showCommentGeneration && (
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
+                      <div className="flex items-center space-x-2 mb-3">
+                        <div className="flex items-center space-x-2">
+                          {isGeneratingComment ? (
+                            <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                          ) : (
+                            <MessageCircle className="h-4 w-4 text-blue-500" />
+                          )}
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Your AI Companion
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                        {generatedComment}
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-center">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Your thoughts are safe and private here</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Your thoughts are safe and private here. AI will provide supportive feedback.
+                    </p>
                     <Button
                       onClick={handleSaveNew}
                       disabled={!newEntry.trim() || isSaving}
                       className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white rounded-full transition-all duration-300 transform hover:scale-105 glow-hover"
                     >
                       <Save className="h-4 w-4 mr-2" />
-                      {isSaving ? "Saving..." : "Save Entry"}
+                      {isSaving ? (isGeneratingComment ? "AI is thinking..." : "Saving...") : "Save Entry"}
                     </Button>
                   </div>
                 </CardContent>
@@ -425,6 +560,12 @@ export default function JournalPage() {
                             <span className="text-sm text-gray-600 dark:text-gray-400">
                               {formatDate(entry.createdAt)}
                             </span>
+                            {entry.prompt && (
+                              <Badge variant="outline" className="text-xs">
+                                <Lightbulb className="h-3 w-3 mr-1" />
+                                Prompted
+                              </Badge>
+                            )}
                           </div>
                           <div className="flex items-center space-x-2">
                             <Button
@@ -446,7 +587,19 @@ export default function JournalPage() {
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent className="space-y-4">
+                        {/* Show prompt if exists */}
+                        {entry.prompt && (
+                          <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-700">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <Lightbulb className="h-4 w-4 text-yellow-500" />
+                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Prompt:</span>
+                            </div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 italic">"{entry.prompt}"</p>
+                          </div>
+                        )}
+
+                        {/* Journal Content */}
                         {editingEntry === entry._id ? (
                           <div className="space-y-4">
                             <Textarea
@@ -454,6 +607,28 @@ export default function JournalPage() {
                               onChange={(e) => setEditContent(e.target.value)}
                               className="min-h-[200px] glow-hover border-pink-200 dark:border-purple-700 focus:border-pink-400 dark:focus:border-purple-500 resize-none text-base leading-relaxed"
                             />
+                            
+                            {/* AI Comment Generation Display for Edit */}
+                            {showCommentGeneration && editingEntry === entry._id && (
+                              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
+                                <div className="flex items-center space-x-2 mb-3">
+                                  <div className="flex items-center space-x-2">
+                                    {isGeneratingComment ? (
+                                      <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                                    ) : (
+                                      <MessageCircle className="h-4 w-4 text-blue-500" />
+                                    )}
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                      Your AI Companion
+                                    </span>
+                                  </div>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                                  {generatedComment}
+                                </p>
+                              </div>
+                            )}
+                            
                             <div className="flex justify-end space-x-2">
                               <Button
                                 variant="outline"
@@ -461,6 +636,8 @@ export default function JournalPage() {
                                 onClick={() => {
                                   setEditingEntry(null)
                                   setEditContent("")
+                                  setShowCommentGeneration(false)
+                                  setGeneratedComment("")
                                 }}
                               >
                                 <X className="h-4 w-4 mr-1" />
@@ -469,10 +646,11 @@ export default function JournalPage() {
                               <Button
                                 size="sm"
                                 onClick={() => handleSaveEdit(entry._id)}
+                                disabled={isGeneratingComment}
                                 className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
                               >
                                 <Check className="h-4 w-4 mr-1" />
-                                Save
+                                {isGeneratingComment ? "AI is thinking..." : "Save"}
                               </Button>
                             </div>
                           </div>
@@ -480,6 +658,21 @@ export default function JournalPage() {
                           <div className="prose dark:prose-invert max-w-none">
                             <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
                               {entry.content}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Gemini AI Comment */}
+                        {entry.geminiComment && (
+                          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700 mt-4">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Bot className="h-4 w-4 text-blue-500" />
+                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                AI Companion:
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                              {entry.geminiComment}
                             </p>
                           </div>
                         )}

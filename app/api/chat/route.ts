@@ -1,48 +1,189 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/lib/auth"
+import { getSystemPrompt } from "@/lib/prompt"
+import connectDB from "@/lib/mongodb"
+import Message from "@/lib/models/Message"
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+const GEMINI_API_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemma-3n-e2b-it:generateContent"
+
+// Helper function to detect if user is asking about their conversation history
+function isHistoryQuestion(message: string): boolean {
+  const historyKeywords = [
+    'what did i', 'what have i', 'did i tell you', 'did i mention', 'did i say',
+    'what was i', 'remember when', 'you remember', 'we talked about',
+    'earlier today', 'yesterday', 'last time', 'before', 'previously',
+    'conversation', 'chat history', 'our discussion', 'what did we discuss',
+    'summarize our', 'summary of', 'topics we covered', 'feelings i shared',
+    'emotions i expressed', 'problems i mentioned', 'issues i discussed'
+  ]
+  
+  const lowerMessage = message.toLowerCase()
+  return historyKeywords.some(keyword => lowerMessage.includes(keyword))
+}
+
+// Helper function to get relevant message history based on query
+async function getRelevantHistory(userId: string, query: string, limit: number = 50): Promise<any[]> {
+  await connectDB()
+  
+  // Get recent messages (last 50 or specified limit)
+  const recentMessages = await Message.find({ userId })
+    .sort({ timestamp: -1 })
+    .limit(limit)
+    .lean()
+  
+  return recentMessages.reverse() // Return in chronological order
+}
+
+// Helper function to extract key topics and emotions from conversation history
+function analyzeConversationHistory(messages: any[]): string {
+  if (messages.length === 0) return "No previous conversations found."
+  
+  const userMessages = messages.filter(msg => msg.sender === 'user')
+  const botMessages = messages.filter(msg => msg.sender === 'bot')
+  
+  const totalMessages = messages.length
+  const conversationSpan = messages.length > 0 ? 
+    `from ${new Date(messages[0].timestamp).toLocaleDateString()} to ${new Date(messages[messages.length - 1].timestamp).toLocaleDateString()}` : 
+    'today'
+  
+  return `
+CONVERSATION ANALYSIS:
+- Total messages: ${totalMessages} (${userMessages.length} from user, ${botMessages.length} from Mindsphere)
+- Conversation span: ${conversationSpan}
+- Recent conversation context available for analysis and questions
+  `
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession()
+    const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { message } = await request.json()
+    const { message, language = "English", conversationHistory = [] } = await request.json()
 
-    // Placeholder for Gemini API integration
-    // Replace with actual Gemini API call
-    const response = await generateGeminiResponse(message)
+    if (!GEMINI_API_KEY) {
+      return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 })
+    }
 
-    return NextResponse.json({ response })
+    await connectDB()
+
+    const systemPrompt = getSystemPrompt(language)
+    const userId = session.user?.email
+
+    // Check if user is asking about their conversation history
+    const isAskingAboutHistory = isHistoryQuestion(message)
+    
+    let contextualPrompt = ""
+    let conversationContext = ""
+
+    if (isAskingAboutHistory) {
+      // Get more extensive history for analysis
+      const fullHistory = await getRelevantHistory(userId!, message, 100)
+      const historyAnalysis = analyzeConversationHistory(fullHistory)
+      
+      // Create detailed conversation context for history questions
+      conversationContext = fullHistory
+        .map((msg: any) => {
+          const timestamp = new Date(msg.timestamp).toLocaleString()
+          return `[${timestamp}] ${msg.sender === "user" ? "You" : "Mindsphere"}: ${msg.content}`
+        })
+        .join("\n")
+
+      contextualPrompt = `${systemPrompt}
+      
+You are Mindsphere, analyzing the user's conversation history. The user is asking about their past conversations with you.
+
+IMPORTANT INSTRUCTIONS:
+- You have access to the user's complete conversation history below
+- Answer questions about what they discussed, shared emotions, topics covered, or any patterns you notice
+- Be specific and reference actual conversations when possible
+- Include timestamps when relevant
+- Maintain your warm, supportive tone even when analyzing data
+- If they ask about emotions or feelings they shared, be empathetic in your response
+- Provide insights that could be helpful for their self-reflection or growth
+
+${historyAnalysis}
+
+FULL CONVERSATION HISTORY:
+${conversationContext}
+
+Current question about conversation history: ${message}
+
+Mindsphere (analyzing your conversation history):`
+
+    } else {
+      // Normal conversation flow with recent context
+      conversationContext = conversationHistory
+        .slice(-6)
+        .map((msg: any) => `${msg.sender === "user" ? "Human" : "Mindsphere"}: ${msg.content}`)
+        .join("\n")
+
+      contextualPrompt = `${systemPrompt}
+      Please understand and respond in ${language}, even if the message is typed in English letters or phonetics.
+
+      You are Mindsphere, a warm and emotionally supportive AI companion. Your tone must always be gentle, compassionate, and calming. Speak like a kind friend who listens deeply and responds thoughtfully.
+
+      💬 If the user shares emotions (e.g., anxious, sad, joyful), respond with empathy and suggest something helpful like breathing exercises, journaling prompts, or a kind affirmation.
+
+      🎵 Only if the mood truly calls for it (such as deep sadness, anxiety, or celebration), you may suggest a calming or uplifting real YouTube song link. Format it like this: 
+      🎶 Here's a song that might help you right now: [YouTube link]
+
+      Do **not** recommend a song every time. Only do so when it feels emotionally appropriate.
+
+      Keep your messages short, heartfelt, and natural.
+
+      Previous conversation:
+      ${conversationContext}
+      Human: ${message}
+      Mindsphere:`
+    }
+
+    // Save user message to DB
+    const userMessageDoc = new Message({
+      userId: session.user?.email,
+      sender: "user",
+      content: message,
+    })
+    await userMessageDoc.save()
+
+    // Send request to Gemini API
+    const geminiRes = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: contextualPrompt }] }],
+        generationConfig: {
+          temperature: isAskingAboutHistory ? 0.3 : 0.85, // Lower temperature for factual history analysis
+          maxOutputTokens: isAskingAboutHistory ? 1000 : 500, // More tokens for detailed history responses
+        },
+      }),
+    })
+
+    const geminiData = await geminiRes.json()
+    console.log("Gemini response:", geminiData)
+
+    const reply =
+      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
+      "💜 I'm here for you."
+
+    // Save bot response to DB
+    const botMessageDoc = new Message({
+      userId: session.user?.email,
+      sender: "bot",
+      content: reply,
+    })
+    await botMessageDoc.save()
+
+    return NextResponse.json({ response: reply })
   } catch (error) {
-    console.error("Chat API error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error in chat route:", error)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
-}
-
-async function generateGeminiResponse(message: string): Promise<string> {
-  // Placeholder implementation - replace with actual Gemini API call
-  // For now, return a compassionate response based on keywords
-
-  const lowerMessage = message.toLowerCase()
-
-  if (lowerMessage.includes("sad") || lowerMessage.includes("depressed")) {
-    return "I hear that you're going through a difficult time. Your feelings are completely valid, and it's okay to not be okay sometimes. Remember that this feeling is temporary, and you have the strength to get through this. What's one small thing that might bring you a moment of peace today? 🌸"
-  }
-
-  if (lowerMessage.includes("anxious") || lowerMessage.includes("worried")) {
-    return "Anxiety can feel overwhelming, but you're not alone in this feeling. Let's take a moment together - try taking three deep breaths with me. Breathe in for 4 counts, hold for 4, and out for 4. Your worries are heard, and we can work through them one step at a time. 🌙"
-  }
-
-  if (lowerMessage.includes("grateful") || lowerMessage.includes("thankful")) {
-    return "How beautiful that you're focusing on gratitude! Gratitude has such a powerful way of shifting our perspective and opening our hearts. It sounds like you're cultivating a practice of appreciation, which is truly wonderful for the soul. What else are you feeling grateful for today? ✨"
-  }
-
-  if (lowerMessage.includes("stressed") || lowerMessage.includes("overwhelmed")) {
-    return "Feeling overwhelmed is your mind's way of telling you that you're carrying a lot right now. It's okay to feel this way, and it's a sign of your caring nature. Remember, you don't have to do everything at once. What's one thing you could let go of today, even temporarily? 🦋"
-  }
-
-  // Default compassionate response
-  return "Thank you for sharing that with me. I'm here to listen and support you. Your thoughts and feelings matter, and this is a safe space for you to express whatever is on your heart. How can I best support you right now? 💜"
 }

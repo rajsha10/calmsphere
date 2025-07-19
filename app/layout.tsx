@@ -11,7 +11,7 @@ import { AuthProvider } from "@/components/auth-provider"
 const quicksand = Quicksand({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "MindMate - Your Spiritual Mental Health Companion",
+  title: "CalmSphere - Your Spiritual Mental Health Companion",
   description: "A peaceful space for mental wellness and spiritual growth",
 }
 

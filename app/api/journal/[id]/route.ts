@@ -13,7 +13,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { content } = await request.json()
+    const { content, geminiComment } = await request.json()
     const { id } = params
 
     if (!content || content.trim().length === 0) {
@@ -33,16 +33,21 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    // Update journal entry (only if it belongs to the user)
-    const updatedEntry = await JournalEntry.findOneAndUpdate(
-      { _id: id, userId: user._id },
-      { content: content.trim() },
-      { new: true },
-    )
-
-    if (!updatedEntry) {
+    // Find the existing entry to verify ownership
+    const existingEntry = await JournalEntry.findOne({ _id: id, userId: user._id })
+    if (!existingEntry) {
       return NextResponse.json({ error: "Journal entry not found" }, { status: 404 })
     }
+
+    // Update journal entry with new content and pre-generated Gemini comment
+    const updatedEntry = await JournalEntry.findOneAndUpdate(
+      { _id: id, userId: user._id },
+      {
+        content: content.trim(),
+        geminiComment: geminiComment || existingEntry.geminiComment, // Use new comment or keep existing
+      },
+      { new: true },
+    )
 
     return NextResponse.json({
       success: true,
@@ -50,6 +55,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       entry: {
         _id: updatedEntry._id,
         content: updatedEntry.content,
+        prompt: updatedEntry.prompt,
+        geminiComment: updatedEntry.geminiComment,
         createdAt: updatedEntry.createdAt,
       },
     })
