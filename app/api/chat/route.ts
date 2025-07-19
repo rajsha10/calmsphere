@@ -1,13 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
-import { getSystemPrompt } from "@/lib/prompt"
 import connectDB from "@/lib/mongodb"
 import Message from "@/lib/models/Message"
+import { getScystemPrompt } from "@/lib/prompt"
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemma-3n-e2b-it:generateContent"
 
 // Helper function to detect if user is asking about their conversation history
 function isHistoryQuestion(message: string): boolean {
@@ -72,21 +70,18 @@ export async function POST(request: NextRequest) {
 
     await connectDB()
 
-    const systemPrompt = getSystemPrompt(language)
+    const systemPrompt = getScystemPrompt(language)
     const userId = session.user?.email
 
-    // Check if user is asking about their conversation history
     const isAskingAboutHistory = isHistoryQuestion(message)
     
     let contextualPrompt = ""
     let conversationContext = ""
 
     if (isAskingAboutHistory) {
-      // Get more extensive history for analysis
       const fullHistory = await getRelevantHistory(userId!, message, 100)
       const historyAnalysis = analyzeConversationHistory(fullHistory)
       
-      // Create detailed conversation context for history questions
       conversationContext = fullHistory
         .map((msg: any) => {
           const timestamp = new Date(msg.timestamp).toLocaleString()
@@ -151,27 +146,40 @@ Mindsphere (analyzing your conversation history):`
     })
     await userMessageDoc.save()
 
-    // Send request to Gemini API
-    const geminiRes = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+    // Send request to Gemini API - CORRECTED FORMAT
+    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemma-3n-e2b-it:generateContent?key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: contextualPrompt }] }],
+        contents: [
+          {
+            parts: [
+              {
+                text: contextualPrompt
+              }
+            ]
+          }
+        ],
         generationConfig: {
-          temperature: isAskingAboutHistory ? 0.3 : 0.85, // Lower temperature for factual history analysis
-          maxOutputTokens: isAskingAboutHistory ? 1000 : 500, // More tokens for detailed history responses
-        },
-      }),
+          temperature: 0.85,
+          maxOutputTokens: isAskingAboutHistory ? 1000 : 500,
+          topP: 0.8,
+          topK: 10
+        }
+      })      
     })
 
     const geminiData = await geminiRes.json()
     console.log("Gemini response:", geminiData)
-
-    const reply =
-      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-      "💜 I'm here for you."
+      
+    if (!geminiRes.ok) {
+      console.error("Gemini API error:", geminiData)
+      throw new Error(`Gemini API error: ${geminiRes.status}`)
+    }
+      
+    const reply = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "💜 I'm here for you."
 
     // Save bot response to DB
     const botMessageDoc = new Message({

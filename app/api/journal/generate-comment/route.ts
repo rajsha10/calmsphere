@@ -8,7 +8,8 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "")
 
 async function getGeminiComment(journalContent: string, prompt?: string): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+    // Using Gemma 3n E2B model
+    const model = genAI.getGenerativeModel({ model: "gemma-3n-e2b-it" })
 
     const systemPrompt = `You are a compassionate and supportive AI journal companion. Your role is to provide thoughtful, empathetic, and encouraging responses to journal entries. 
 

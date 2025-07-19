@@ -3,7 +3,7 @@ import type React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { Send, Bot, User, Heart, Star, Moon, Sparkles, MessageCircle, Languages, Copy, Check } from "lucide-react"
+import { Send, Bot, User, Heart, Star, Moon, Sparkles, MessageCircle, Languages, Copy, Check, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,6 +41,43 @@ const MessageFormatter: React.FC<{ content: string; onCopy?: (text: string) => v
     onCopy?.(text)
     setTimeout(() => setCopiedText(null), 2000)
   }, [onCopy])
+
+  const formatInlineText = (text: string) => {
+    // Enhanced formatting for bold, italic, and code
+    const parts = text.split(/(\*\*.*?\*\*|__.*?__|`.*?`|\*.*?\*|_.*?_)/g)
+
+    return parts.map((part, index) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return (
+          <strong key={index} className="font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 px-1 rounded">
+            {part.slice(2, -2)}
+          </strong>
+        )
+      }
+      if (part.startsWith("__") && part.endsWith("__")) {
+        return (
+          <strong key={index} className="font-bold text-purple-700 dark:text-purple-300">
+            {part.slice(2, -2)}
+          </strong>
+        )
+      }
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return (
+          <code key={index} className="bg-gray-100 dark:bg-gray-800 text-pink-600 dark:text-pink-400 px-2 py-0.5 rounded text-sm font-mono">
+            {part.slice(1, -1)}
+          </code>
+        )
+      }
+      if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+        return (
+          <em key={index} className="italic text-purple-600 dark:text-purple-400">
+            {part.slice(1, -1)}
+          </em>
+        )
+      }
+      return <span key={index}>{part}</span>
+    })
+  }
 
   const formatText = (text: string) => {
     const lines = text.split("\n")
@@ -97,43 +134,6 @@ const MessageFormatter: React.FC<{ content: string; onCopy?: (text: string) => v
     })
   }
 
-  const formatInlineText = (text: string) => {
-    // Enhanced formatting for bold, italic, and code
-    const parts = text.split(/(\*\*.*?\*\*|__.*?__|`.*?`|\*.*?\*|_.*?_)/g)
-
-    return parts.map((part, index) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return (
-          <strong key={index} className="font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 px-1 rounded">
-            {part.slice(2, -2)}
-          </strong>
-        )
-      }
-      if (part.startsWith("__") && part.endsWith("__")) {
-        return (
-          <strong key={index} className="font-bold text-purple-700 dark:text-purple-300">
-            {part.slice(2, -2)}
-          </strong>
-        )
-      }
-      if (part.startsWith("`") && part.endsWith("`")) {
-        return (
-          <code key={index} className="bg-gray-100 dark:bg-gray-800 text-pink-600 dark:text-pink-400 px-2 py-0.5 rounded text-sm font-mono">
-            {part.slice(1, -1)}
-          </code>
-        )
-      }
-      if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
-        return (
-          <em key={index} className="italic text-purple-600 dark:text-purple-400">
-            {part.slice(1, -1)}
-          </em>
-        )
-      }
-      return <span key={index}>{part}</span>
-    })
-  }
-
   return (
     <div className="leading-relaxed group">
       {formatText(content)}
@@ -159,6 +159,7 @@ export default function ChatbotPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputMessage, setInputMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isClearing, setIsClearing] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -228,6 +229,31 @@ export default function ChatbotPage() {
       textareaRef.current.focus()
     }
   }, [isLoading])
+
+  const handleClearChat = async () => {
+    if (!confirm("Are you sure you want to clear all chat history? This action cannot be undone.")) {
+      return
+    }
+
+    setIsClearing(true)
+    try {
+      const response = await fetch("/api/clear-chat", {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        setMessages([])
+        console.log("Chat history cleared successfully")
+      } else {
+        throw new Error("Failed to clear chat history")
+      }
+    } catch (error) {
+      console.error("Error clearing chat:", error)
+      alert("Failed to clear chat history. Please try again.")
+    } finally {
+      setIsClearing(false)
+    }
+  }
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return
@@ -386,9 +412,30 @@ export default function ChatbotPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                  <MessageCircle className="h-4 w-4" />
-                  <span>{messages.length} messages</span>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                    <MessageCircle className="h-4 w-4" />
+                    <span>{messages.length} messages</span>
+                  </div>
+                  {messages.length > 0 && (
+                    <Button
+                      onClick={handleClearChat}
+                      disabled={isClearing}
+                      variant="ghost"
+                      size="sm"
+                      className="relative group bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 hover:border-red-300 dark:hover:border-red-700 transition-all duration-300"
+                    >
+                      <div className="absolute -inset-1 bg-gradient-to-r from-red-500 to-pink-500 rounded-lg blur opacity-0 group-hover:opacity-25 transition duration-300"></div>
+                      <div className="relative flex items-center gap-2">
+                        {isClearing ? (
+                          <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                        <span className="text-xs font-medium">Clear Chat</span>
+                      </div>
+                    </Button>
+                  )}
                 </div>
               </CardTitle>
             </CardHeader>
