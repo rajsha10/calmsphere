@@ -25,7 +25,7 @@ export default function HomePage() {
         {/* Hero Section */}
         <div className="text-center mb-20">
           <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500 bg-clip-text text-transparent">
-            Welcome to CalmSphere
+            Welcome to Calm Sphere
           </h1>
           <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
             Your gentle companion for mental wellness and spiritual growth. Find peace, clarity, and healing in this

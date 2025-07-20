@@ -361,7 +361,7 @@ export default function JournalPage() {
             Your Sacred Journal
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-300">
-            A safe space for your thoughts, feelings, and reflections with AI companion support
+            A safe space for your thoughts, feelings, and reflections with Calm companion support
           </p>
         </div>
 
@@ -434,7 +434,7 @@ export default function JournalPage() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">AI Comments</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Calm Sphere Comments</span>
                   <span className="font-semibold text-blue-600 dark:text-blue-400">
                     {entries.filter((entry) => entry.geminiComment).length}
                   </span>
@@ -495,7 +495,7 @@ export default function JournalPage() {
                             <MessageCircle className="h-4 w-4 text-blue-500" />
                           )}
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Your AI Companion
+                            Calm
                           </span>
                         </div>
                       </div>
@@ -619,7 +619,7 @@ export default function JournalPage() {
                                       <MessageCircle className="h-4 w-4 text-blue-500" />
                                     )}
                                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                      Your AI Companion
+                                      Calm
                                     </span>
                                   </div>
                                 </div>
@@ -668,7 +668,7 @@ export default function JournalPage() {
                             <div className="flex items-center space-x-2 mb-2">
                               <Bot className="h-4 w-4 text-blue-500" />
                               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                AI Companion:
+                                Calm comment
                               </span>
                             </div>
                             <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">

@@ -335,7 +335,7 @@ export default function ChatbotPage() {
             <Heart className="relative h-12 w-12 text-pink-500 mx-auto mb-6 animate-bounce" />
           </div>
           <h2 className="text-2xl font-semibold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent mb-2">
-            Loading Your AI Companion
+            Loading Calm Bot
           </h2>
           <p className="text-gray-600 dark:text-gray-300">Preparing a mindful space for you...</p>
         </div>
@@ -362,7 +362,7 @@ export default function ChatbotPage() {
         <div className="text-center mb-6 flex-shrink-0">
           <div className="relative inline-block">
             <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
-              Your AI Companion
+              Your Calm bot
             </h1>
             <div className="absolute -inset-1 bg-gradient-to-r from-pink-600 to-purple-600 blur opacity-10"></div>
           </div>
@@ -527,7 +527,7 @@ export default function ChatbotPage() {
                                   {message.sender === "bot" && (
                                     <span className="flex items-center gap-1">
                                       <Sparkles className="h-3 w-3" />
-                                      AI Response
+                                      Calm Resposnse
                                     </span>
                                   )}
                                 </div>
@@ -601,7 +601,9 @@ export default function ChatbotPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       <Sparkles className="h-3 w-3 text-purple-500" />
-                      <span>AI-Powered</span>
+                      <span>Calm bot
+                        
+                      </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Star className="h-3 w-3 text-indigo-500" />

@@ -60,12 +60,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden py-12 px-4">
-      {/* Background Music */}
-      <audio autoPlay loop style={{ volume: 0.4 }}>
-        <source src="/path/to/soothing-music.mp3" type="audio/mp3" />
-        Your browser does not support the audio element.
-      </audio>
-
       {/* Floating Background Elements */}
       <div className="absolute inset-0 pointer-events-none">
         <Star className="absolute top-20 left-10 h-8 w-8 text-pink-300 dark:text-purple-400 float-animation opacity-40" />
@@ -132,6 +126,15 @@ export default function LoginPage() {
               </div>
             </div>
 
+            <div className="text-right">
+              <Link
+                href="/forgot-password"
+                className="text-sm text-pink-500 hover:text-pink-600 dark:text-purple-400 dark:hover:text-purple-300"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
             <Button
               type="submit"
               disabled={isLoading}
@@ -189,6 +192,19 @@ export default function LoginPage() {
           </div>
         </CardContent>
       </Card>
+
+      <style jsx>{`
+        .float-animation {
+          animation: float 6s ease-in-out infinite;
+        }
+        .float-slow {
+          animation: float 8s ease-in-out infinite;
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-20px) rotate(5deg); }
+        }
+      `}</style>
     </div>
   )
 }

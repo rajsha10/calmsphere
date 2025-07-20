@@ -14,14 +14,36 @@ const quotes = [
   "You are worthy of love and kindness. 🌺",
   "This too shall pass. ☁️",
   "You have survived 100% of your difficult days. 🌟",
+  "Self-care is how you take your power back. — Lalah Delia 🌿",
+  "It’s okay not to be okay. — Unknown 🤍",
+  "Almost everything will work again if you unplug it — including you. — Anne Lamott 🔌",
+  "When you say yes to others, make sure you’re not saying no to yourself. — Paulo Coelho 🙌",
+  "Rest and self‑care are so important... You cannot serve from an empty vessel. — Eleanor Brownn 🌊",
+  "The wound is where the light enters you. — Rumi ✨",
+  "You are stronger than you realize. — Unknown 💪",
+  "You are the most constant thing in your own life. Befriend yourself first. — Brianna Wiest 🤝",
+  "Mental health problems don’t define who you are... You are not the rain. — Matt Haig 🌧️",
+  "Self-care is never a selfish act — it is simply good stewardship of the only gift I have. — Parker Palmer 🌺",
+  "You can’t stop the waves, but you can learn to surf. — Jon Kabat‑Zinn 🏄‍♀️"
 ]
+
 
 export function QuoteBanner() {
   const [quote, setQuote] = useState("")
 
-  useEffect(() => {
+  const getRandomQuote = () => {
     const randomQuote = quotes[Math.floor(Math.random() * quotes.length)]
     setQuote(randomQuote)
+  }
+
+  useEffect(() => {
+    getRandomQuote()
+    
+    const interval = setInterval(() => {
+      getRandomQuote()
+    }, 10 * 60 * 1000)
+
+    return () => clearInterval(interval)
   }, [])
 
   return (

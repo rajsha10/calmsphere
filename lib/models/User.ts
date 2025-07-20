@@ -20,10 +20,32 @@ const UserSchema = new mongoose.Schema({
     type: String,
     sparse: true,
   },
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
+  otpCode: {
+    type: String,
+    default: null,
+  },
+  otpExpiry: {
+    type: Date,
+    default: null,
+  },
+  resetPasswordToken: {
+    type: String,
+    default: null,
+  },
+  resetPasswordExpiry: {
+    type: Date,
+    default: null,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
   },
 })
 
-export default mongoose.models.User || mongoose.model("User", UserSchema)
+delete mongoose.models.User
+
+export default mongoose.model("User", UserSchema)

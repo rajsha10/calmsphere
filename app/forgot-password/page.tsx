@@ -4,24 +4,24 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Eye, EyeOff, Mail, Lock, User, Heart, Star, Moon, Shield, Clock } from "lucide-react"
+import { Mail, Lock, Shield, Heart, Star, Moon, Eye, EyeOff, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 
-export default function SignupPage() {
-  const [step, setStep] = useState<"email" | "otp" | "details">("email")
+export default function ForgotPasswordPage() {
+  const [step, setStep] = useState<"email" | "otp" | "reset">("email")
   const [email, setEmail] = useState("")
   const [otp, setOtp] = useState("")
-  const [name, setName] = useState("")
-  const [password, setPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [countdown, setCountdown] = useState(0)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [resetToken, setResetToken] = useState("")
   const router = useRouter()
 
   useEffect(() => {
@@ -40,145 +40,100 @@ export default function SignupPage() {
     e.preventDefault()
     setIsLoading(true)
     setError("")
-    setSuccess("")
-
-    console.log("=== SENDING OTP ===")
-    console.log("Email:", email)
 
     try {
       const response = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), purpose: "signup" }),
+        body: JSON.stringify({ email, purpose: "reset" }),
       })
 
       const data = await response.json()
-      console.log("Send OTP response:", data)
 
       if (response.ok) {
         setStep("otp")
         setCountdown(60)
-        setSuccess("Verification code sent to your email!")
+        setSuccess("Reset code sent to your email!")
       } else {
-        setError(data.error || "Failed to send verification code")
+        setError(data.error || "Failed to send reset code")
       }
     } catch (error) {
-      console.error("Send OTP error:", error)
       setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleVerifyOTP = async () => {
-    if (otp.length !== 6) {
-      setError("Please enter a valid 6-digit code")
-      return
-    }
-  
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault()
     setIsLoading(true)
     setError("")
-    setSuccess("")
-  
-    console.log("=== VERIFYING OTP ===")
-    console.log("OTP entered:", otp)
-  
+
     try {
-      // Just check if OTP is valid without completing signup
       const response = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          otp: otp.trim(),
-          purpose: "signup",
-          checkOnly: true // Add this flag
+          email,
+          otp,
+          purpose: "reset",
         }),
       })
-  
+
       const data = await response.json()
-  
+
       if (response.ok) {
-        setStep("details")
-        setError("")
-        setSuccess("Code verified! Please complete your account details.")
+        setResetToken(data.resetToken)
+        setStep("reset")
+        setSuccess("OTP verified! Now set your new password.")
       } else {
-        setError(data.error || "Invalid verification code")
+        setError(data.error || "Invalid OTP")
       }
     } catch (error) {
-      console.error("OTP verification error:", error)
       setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleCompleteSignup = async (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (password !== confirmPassword) {
+    if (newPassword !== confirmPassword) {
       setError("Passwords do not match")
       return
     }
 
-    if (password.length < 6) {
+    if (newPassword.length < 6) {
       setError("Password must be at least 6 characters long")
-      return
-    }
-
-    if (!name.trim()) {
-      setError("Please enter your name")
       return
     }
 
     setIsLoading(true)
     setError("")
-    setSuccess("")
-
-    console.log("=== COMPLETING SIGNUP ===")
-    console.log("Final data:", {
-      email: email.trim().toLowerCase(),
-      otp,
-      name: name.trim(),
-      hasPassword: !!password,
-    })
 
     try {
-      const response = await fetch("/api/auth/verify-otp", {
+      const response = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          otp: otp.trim(),
-          purpose: "signup",
-          name: name.trim(),
-          password,
+          email,
+          resetToken,
+          newPassword,
         }),
       })
 
       const data = await response.json()
-      console.log("Complete signup response:", data)
 
       if (response.ok) {
-        setSuccess("Account created successfully! Redirecting to login...")
+        setSuccess("Password reset successfully! Redirecting to login...")
         setTimeout(() => {
-          router.push("/login?message=Account created successfully")
+          router.push("/login")
         }, 2000)
       } else {
-        setError(data.error || "Failed to create account")
-
-        // If OTP related error, go back to OTP step
-        if (
-          data.error?.includes("verification code") ||
-          data.error?.includes("expired") ||
-          data.error?.includes("Invalid")
-        ) {
-          setStep("otp")
-          setOtp("")
-        }
+        setError(data.error || "Failed to reset password")
       }
     } catch (error) {
-      console.error("Complete signup error:", error)
       setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
@@ -189,25 +144,14 @@ export default function SignupPage() {
     if (countdown > 0) return
 
     setIsLoading(true)
-    setError("")
-    setSuccess("")
-
     try {
-      const response = await fetch("/api/auth/send-otp", {
+      await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), purpose: "signup" }),
+        body: JSON.stringify({ email, purpose: "reset" }),
       })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        setCountdown(60)
-        setSuccess("New verification code sent!")
-        setOtp("") // Clear current OTP
-      } else {
-        setError(data.error || "Failed to resend code")
-      }
+      setCountdown(60)
+      setSuccess("New reset code sent!")
     } catch (error) {
       setError("Failed to resend code")
     } finally {
@@ -231,18 +175,18 @@ export default function SignupPage() {
             <div className="w-16 h-16 bg-gradient-to-br from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
               {step === "email" && <Mail className="h-8 w-8 text-white" />}
               {step === "otp" && <Shield className="h-8 w-8 text-white" />}
-              {step === "details" && <User className="h-8 w-8 text-white" />}
+              {step === "reset" && <Lock className="h-8 w-8 text-white" />}
             </div>
           </div>
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
-            {step === "email" && "Join CalmSphere"}
-            {step === "otp" && "Verify Your Email"}
-            {step === "details" && "Complete Signup"}
+            {step === "email" && "Reset Password"}
+            {step === "otp" && "Verify Reset Code"}
+            {step === "reset" && "New Password"}
           </CardTitle>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            {step === "email" && "Begin your journey to mental wellness"}
+            {step === "email" && "Enter your email to receive a reset code"}
             {step === "otp" && "Enter the verification code sent to your email"}
-            {step === "details" && "Create your account details"}
+            {step === "reset" && "Create a new secure password"}
           </p>
         </CardHeader>
 
@@ -259,7 +203,6 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/* Step 1: Email */}
           {step === "email" && (
             <form onSubmit={handleSendOTP} className="space-y-4">
               <div className="space-y-2">
@@ -285,14 +228,13 @@ export default function SignupPage() {
                 disabled={isLoading}
                 className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white py-3 rounded-full transition-all duration-300 transform hover:scale-105 glow-hover"
               >
-                {isLoading ? "Sending Code..." : "Send Verification Code"}
+                {isLoading ? "Sending Code..." : "Send Reset Code"}
               </Button>
             </form>
           )}
 
-          {/* Step 2: OTP Verification */}
           {step === "otp" && (
-            <div className="space-y-4">
+            <form onSubmit={handleVerifyOTP} className="space-y-4">
               <div className="text-center">
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                   We sent a 6-digit code to <strong>{email}</strong>
@@ -301,7 +243,7 @@ export default function SignupPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="otp" className="text-gray-700 dark:text-gray-300">
-                  Verification Code
+                  Reset Code
                 </Label>
                 <div className="relative">
                   <Shield className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -319,11 +261,11 @@ export default function SignupPage() {
               </div>
 
               <Button
-                onClick={handleVerifyOTP}
-                disabled={otp.length !== 6}
+                type="submit"
+                disabled={otp.length !== 6 || isLoading}
                 className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white py-3 rounded-full transition-all duration-300 transform hover:scale-105 glow-hover"
               >
-                Continue
+                {isLoading ? "Verifying..." : "Verify Code"}
               </Button>
 
               <div className="text-center">
@@ -343,41 +285,22 @@ export default function SignupPage() {
                   )}
                 </button>
               </div>
-            </div>
+            </form>
           )}
 
-          {/* Step 3: Complete Details */}
-          {step === "details" && (
-            <form onSubmit={handleCompleteSignup} className="space-y-4">
+          {step === "reset" && (
+            <form onSubmit={handleResetPassword} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-gray-700 dark:text-gray-300">
-                  Full Name
-                </Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="name"
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="pl-10 glow-hover border-pink-200 dark:border-purple-700 focus:border-pink-400 dark:focus:border-purple-500"
-                    placeholder="Your name"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-gray-700 dark:text-gray-300">
-                  Password
+                <Label htmlFor="newPassword" className="text-gray-700 dark:text-gray-300">
+                  New Password
                 </Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
-                    id="password"
+                    id="newPassword"
                     type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
                     className="pl-10 pr-10 glow-hover border-pink-200 dark:border-purple-700 focus:border-pink-400 dark:focus:border-purple-500"
                     placeholder="••••••••"
                     required
@@ -394,7 +317,7 @@ export default function SignupPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword" className="text-gray-700 dark:text-gray-300">
-                  Confirm Password
+                  Confirm New Password
                 </Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -415,14 +338,14 @@ export default function SignupPage() {
                 disabled={isLoading}
                 className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white py-3 rounded-full transition-all duration-300 transform hover:scale-105 glow-hover"
               >
-                {isLoading ? "Creating Account..." : "Create Account"}
+                {isLoading ? "Resetting Password..." : "Reset Password"}
               </Button>
             </form>
           )}
 
           <div className="text-center">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Already have an account?{" "}
+              Remember your password?{" "}
               <Link
                 href="/login"
                 className="text-pink-500 hover:text-pink-600 dark:text-purple-400 dark:hover:text-purple-300 font-medium"
