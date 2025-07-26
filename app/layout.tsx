@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navbar"
 import { QuoteBanner } from "@/components/quote-banner"
 import { LoadingProvider } from "@/components/loading-provider"
 import { AuthProvider } from "@/components/auth-provider"
+import { RefreshProvider } from "@/context/RefreshContext"
 
 const quicksand = Quicksand({ subsets: ["latin"] })
 
@@ -26,11 +27,13 @@ export default function RootLayout({
         <AuthProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange={false}>
             <LoadingProvider>
-              <div className="min-h-screen bg-gradient-to-br from-pink-50 via-blue-50 to-purple-50 dark:from-slate-900 dark:via-purple-900 dark:to-indigo-900 transition-all duration-1000">
-                <QuoteBanner />
-                <Navbar />
-                <main className="transition-all duration-500 ease-in-out">{children}</main>
-              </div>
+              <RefreshProvider>
+                <div className="min-h-screen bg-gradient-to-br from-pink-50 via-blue-50 to-purple-50 dark:from-slate-900 dark:via-purple-900 dark:to-indigo-900 transition-all duration-1000">
+                  <QuoteBanner />
+                  <Navbar />
+                  <main className="transition-all duration-500 ease-in-out">{children}</main>
+                </div>
+              </RefreshProvider>
             </LoadingProvider>
           </ThemeProvider>
         </AuthProvider>

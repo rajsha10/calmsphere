@@ -27,6 +27,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
+import { useRefresh } from "@/context/RefreshContext"
+
 const journalPrompts = [
   "What am I most grateful for today?",
   "How did I show kindness to myself or others?",
@@ -59,6 +61,8 @@ export default function JournalPage() {
   const [showNewEntry, setShowNewEntry] = useState(false)
   const [wordCount, setWordCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
+
+  const { triggerRefresh } = useRefresh()
   
   // New states for AI comment generation
   const [isGeneratingComment, setIsGeneratingComment] = useState(false)
@@ -215,8 +219,8 @@ export default function JournalPage() {
         setShowNewEntry(false)
         setShowCommentGeneration(false)
         setGeneratedComment("")
-        // Get a new prompt for next time
         getNewPrompt()
+        triggerRefresh()
         alert(data.message)
       } else {
         console.error("Save failed:", data)

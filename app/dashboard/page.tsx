@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { useRefresh } from "@/context/RefreshContext"
+
 import {
   BookOpen,
   MessageCircle,
@@ -63,6 +65,8 @@ export default function DashboardPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
 
+  const { needsRefresh, resetRefresh } = useRefresh()
+
   useEffect(() => {
     if (status === "loading") return
     if (!session) {
@@ -89,26 +93,14 @@ export default function DashboardPage() {
     }
   }
 
-  // Initial load
+  // Initial load onyl
   useEffect(() => {
-    if (session) {
-      fetchDashboardData()
+    if (session && needsRefresh) {
+      fetchDashboardData().then(() => {
+        resetRefresh()
+      })
     }
-  }, [session])
-
-  // Auto-refresh every 5 minutes
-  useEffect(() => {
-    if (!session) return
-
-    const interval = setInterval(
-      () => {
-        fetchDashboardData()
-      },
-      5 * 60 * 1000,
-    ) // 5 minutes
-
-    return () => clearInterval(interval)
-  }, [session])
+  }, [session, needsRefresh, resetRefresh]) 
 
   const getMoodColor = (mood: string, score: number) => {
     if (score >= 3) return "text-green-600 bg-green-50 border-green-200"
@@ -116,6 +108,10 @@ export default function DashboardPage() {
     if (score >= -1) return "text-yellow-600 bg-yellow-50 border-yellow-200"
     if (score >= -3) return "text-orange-600 bg-orange-50 border-orange-200"
     return "text-red-600 bg-red-50 border-red-200"
+  }
+
+  const handleManualRefresh = () => {
+    fetchDashboardData(true)
   }
 
   const getMoodEmoji = (mood: string) => {
@@ -183,7 +179,7 @@ export default function DashboardPage() {
               </p>
             )}
             <Button
-              onClick={() => fetchDashboardData(true)}
+              onClick={() => handleManualRefresh()}
               disabled={isRefreshing}
               variant="outline"
               size="sm"

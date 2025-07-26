@@ -25,11 +25,11 @@ interface DailyRecommendations {
   moodDescription: string
 }
 
+// Mood analysis function
 async function getCurrentMoodAnalysis(
   userId: string,
   userEmail: string,
 ): Promise<{ mood: string; score: number; emotions: string[] }> {
-  // Get recent data (last 3 days for current mood)
   const threeDaysAgo = new Date()
   threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
 
@@ -76,6 +76,7 @@ Respond with only a JSON object:
 
   try {
     const response = await fetch(
+      // `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
       `https://generativelanguage.googleapis.com/v1beta/models/gemma-3n-e2b-it:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
@@ -123,153 +124,134 @@ Respond with only a JSON object:
   return { mood: "neutral", score: 0, emotions: ["calm"] }
 }
 
+async function findYouTubeVideo(
+  title: string,
+  artist: string,
+): Promise<string | null> {
+  const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
+  if (!YOUTUBE_API_KEY) {
+    console.error("YouTube API key is missing.");
+    return null;
+  }
+
+  //search query for the YouTube API
+  const query = encodeURIComponent(`${title} ${artist}`);
+  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${query}&type=video&videoCategoryId=10&maxResults=1&key=${YOUTUBE_API_KEY}`;
+
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.items && data.items.length > 0) {
+      return data.items[0].id.videoId;
+    }
+    console.warn(`No YouTube video found for: ${title} - ${artist}`);
+    return null;
+  } catch (error) {
+    console.error(`YouTube API error for "${title}":`, error);
+    return null;
+  }
+}
+
 async function generateSongRecommendations(
   mood: string,
   score: number,
   emotions: string[],
 ): Promise<SongRecommendation[]> {
-  if (!GEMINI_API_KEY) {
-    return []
-  }
+  if (!GEMINI_API_KEY) return [];
 
-  const today = new Date().toISOString().split("T")[0]
+  const today = new Date().toISOString().split("T")[0];
 
   const recommendationPrompt = `
-You are a music therapist and DJ. Based on the current mood analysis, recommend 6 YouTube songs that would be perfect for today (${today}).
+You are a music therapist and DJ specializing in mood-based music curation. Based on the current mood analysis, recommend 6 songs.
 
-Current Mood: ${mood}
-Mood Score: ${score} (-5 to 5 scale)
-Emotions: ${emotions.join(", ")}
+Current Analysis:
+- Primary Mood: ${mood}
+- Mood Score: ${score} (scale: -5 to +5)
+- Emotions: ${emotions.join(", ")}
 
-Guidelines:
-- Mix of popular and lesser-known songs
-- Consider therapeutic value for the mood
-- Include variety of genres and eras
-- Provide real, existing YouTube songs with accurate titles and artists
-- Match energy level to mood (uplifting for low moods, calming for anxious moods)
-
-Respond with only a JSON array:
+CRITICAL: Respond with ONLY a valid JSON array in this exact format. Do not include any other text.
 [
   {
-    "title": "exact song title",
-    "artist": "artist name",
-    "youtubeId": "actual_youtube_video_id",
-    "reason": "why this song fits the current mood (1-2 sentences)",
-    "mood": "mood this song addresses",
-    "genre": "music genre"
+    "title": "Song Title",
+    "artist": "Artist Name",
+    "reason": "Why this song matches the mood and emotions.",
+    "mood": "${mood}",
+    "genre": "Genre"
   }
 ]
-
-Important: Use real YouTube video IDs for popular songs. For example:
-- "Weightless" by Marconi Union: "UfcAVejslrU"
-- "Clair de Lune" by Debussy: "CvFH_6DNRCY"
-- "Here Comes the Sun" by The Beatles: "KQetemT1sWc"
-- "Three Little Birds" by Bob Marley: "zaGUr6wzyT8"
-- "Good Vibrations" by The Beach Boys: "Eab_beh07HU"
-- "Mad World" by Gary Jules: "4N3N1MlvVc4"
-`
+`;
 
   try {
+    // Get Song Ideas from Gemini
     const response = await fetch(
+      // `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
       `https://generativelanguage.googleapis.com/v1beta/models/gemma-3n-e2b-it:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: recommendationPrompt,
-                },
-              ],
-            },
-          ],
+          contents: [{ parts: [{ text: recommendationPrompt }] }],
           generationConfig: {
             temperature: 0.7,
             maxOutputTokens: 1500,
-            topP: 0.9,
-            topK: 20,
           },
         }),
       },
-    )
+    );
 
-    const data = await response.json()
-    const recommendationText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
-
-    if (recommendationText) {
-      const jsonMatch = recommendationText.match(/\[[\s\S]*\]/)
-      if (jsonMatch) {
-        const recommendations = JSON.parse(jsonMatch[0])
-        return recommendations.slice(0, 6) // Ensure max 6 songs
-      }
+    if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Gemini API Error:", errorData);
+        return [];
     }
+    
+    const data = await response.json();
+    const recommendationText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+    if (!recommendationText) {
+      console.error("No recommendation text received from Gemini.");
+      return [];
+    }
+
+    let songIdeas = [];
+    const jsonMatch = recommendationText.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+        try {
+            songIdeas = JSON.parse(jsonMatch[0]);
+        } catch (e) {
+            console.error("Failed to parse JSON from Gemini response.", e);
+            return [];
+        }
+    } else {
+        console.error("No JSON array found in Gemini response.");
+        return [];
+    }
+
+
+    // Verify and Enrich with YouTube API
+    const verifiedSongs: SongRecommendation[] = [];
+
+    for (const idea of songIdeas) {
+      if (idea.title && idea.artist) {
+        const youtubeId = await findYouTubeVideo(idea.title, idea.artist);
+        
+        if (youtubeId) {
+          verifiedSongs.push({
+            ...idea,
+            youtubeId,
+          });
+        }
+      }
+      if (verifiedSongs.length >= 6) break;
+    }
+
+    return verifiedSongs;
+
   } catch (error) {
-    console.error("Song recommendation error:", error)
+    console.error("Song recommendation error:", error);
+    return [];
   }
-
-  // Fallback recommendations based on mood
-  const fallbackSongs: { [key: string]: SongRecommendation[] } = {
-    happy: [
-      {
-        title: "Good Vibrations",
-        artist: "The Beach Boys",
-        youtubeId: "Eab_beh07HU",
-        reason: "Uplifting and energetic to match your positive mood",
-        mood: "happy",
-        genre: "Pop Rock",
-      },
-      {
-        title: "Here Comes the Sun",
-        artist: "The Beatles",
-        youtubeId: "KQetemT1sWc",
-        reason: "A classic feel-good song to brighten your day",
-        mood: "happy",
-        genre: "Rock",
-      },
-    ],
-    sad: [
-      {
-        title: "Mad World",
-        artist: "Gary Jules",
-        youtubeId: "4N3N1MlvVc4",
-        reason: "A gentle, melancholic song that validates your feelings",
-        mood: "sad",
-        genre: "Alternative",
-      },
-      {
-        title: "The Sound of Silence",
-        artist: "Simon & Garfunkel",
-        youtubeId: "4fWyzwo1xg0",
-        reason: "Contemplative and soothing for reflective moments",
-        mood: "sad",
-        genre: "Folk",
-      },
-    ],
-    calm: [
-      {
-        title: "Weightless",
-        artist: "Marconi Union",
-        youtubeId: "UfcAVejslrU",
-        reason: "Scientifically designed to reduce anxiety and promote calm",
-        mood: "calm",
-        genre: "Ambient",
-      },
-      {
-        title: "Clair de Lune",
-        artist: "Claude Debussy",
-        youtubeId: "CvFH_6DNRCY",
-        reason: "Beautiful classical piece perfect for peaceful moments",
-        mood: "calm",
-        genre: "Classical",
-      },
-    ],
-  }
-
-  return fallbackSongs[mood] || fallbackSongs.calm
 }
 
 export async function GET() {
@@ -307,14 +289,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    await connectDB()
+
+    const user = await User.findOne({ email: session.user.email })
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    const today = new Date().toISOString().split("T")[0]
+
+    if (user.lastRecommendationDate !== today) {
+      user.recommendationCount = 0
+      user.lastRecommendationDate = today
+    }
+
+    if (user.recommendationCount >= 2) {
+      return NextResponse.json(
+        { error: "You have reached your daily limit of 2 recommendation generations." },
+        { status: 429 },
+      )
+    }
+    // End of Daily Limit Logic
+
     const { mood, emotions } = await request.json()
 
     if (!mood) {
       return NextResponse.json({ error: "Mood is required" }, { status: 400 })
     }
 
-    // Generate recommendations for custom mood
     const songs = await generateSongRecommendations(mood, 0, emotions || ["neutral"])
+
+    user.recommendationCount += 1
+    await user.save()
 
     return NextResponse.json({
       date: new Date().toISOString().split("T")[0],

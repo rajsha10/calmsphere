@@ -55,14 +55,29 @@ export default function SongsPage() {
     }
   }, [session, status, router])
 
+  //fetchRecommendations Function
   const fetchRecommendations = async (showRefreshing = false) => {
     if (showRefreshing) setIsRefreshing(true)
+    else setIsLoading(true)
 
     try {
       const response = await fetch("/api/songs/recommendations")
+      const today = new Date().toISOString().split("T")[0]
+      const storageKey = `songRecommendations-${today}`
+
       if (response.ok) {
         const data = await response.json()
         setRecommendations(data)
+        localStorage.setItem(storageKey, JSON.stringify(data))
+      } else if (response.status === 429) {
+        const data = await response.json()
+        alert(data.error || "You have reached your daily generation limit.")
+        const cachedData = localStorage.getItem(storageKey)
+        if (cachedData) {
+            setRecommendations(JSON.parse(cachedData))
+        }
+      } else {
+        throw new Error("Failed to fetch recommendations")
       }
     } catch (error) {
       console.error("Failed to fetch song recommendations:", error)
@@ -72,11 +87,24 @@ export default function SongsPage() {
     }
   }
 
+  //Initial Load ---
   useEffect(() => {
     if (session) {
-      fetchRecommendations()
+      const today = new Date().toISOString().split("T")[0]
+      const storageKey = `songRecommendations-${today}`
+      const cachedData = localStorage.getItem(storageKey)
+
+      if (cachedData) {
+        console.log("Loading recommendations from cache for today.")
+        setRecommendations(JSON.parse(cachedData))
+        setIsLoading(false)
+      } else {
+        console.log("No cache for today. Fetching new recommendations.")
+        fetchRecommendations()
+      }
     }
   }, [session])
+
 
   const toggleFavorite = (youtubeId: string) => {
     const newFavorites = new Set(favorites)
@@ -86,12 +114,10 @@ export default function SongsPage() {
       newFavorites.add(youtubeId)
     }
     setFavorites(newFavorites)
-    // Here you could also save to localStorage or API
     localStorage.setItem("favoriteSongs", JSON.stringify(Array.from(newFavorites)))
   }
 
   useEffect(() => {
-    // Load favorites from localStorage
     const savedFavorites = localStorage.getItem("favoriteSongs")
     if (savedFavorites) {
       setFavorites(new Set(JSON.parse(savedFavorites)))

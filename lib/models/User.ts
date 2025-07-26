@@ -40,6 +40,14 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  recommendationCount: {
+    type: Number,
+    default: 0,
+  },
+  lastRecommendationDate: {
+    type: String,
+    default: '',
+  },
   createdAt: {
     type: Date,
     default: Date.now,
