@@ -6,7 +6,14 @@ import Message from "@/lib/models/Message"
 import JournalEntry from "@/lib/models/JournalEntry"
 import User from "@/lib/models/User"
 
+//rate limit
+import { checkAndUpdateCredits } from "@/lib/middlewares/rate-limiter"
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
 
 interface SongRecommendation {
   title: string
@@ -157,6 +164,7 @@ async function generateSongRecommendations(
   mood: string,
   score: number,
   emotions: string[],
+  userEmail: string
 ): Promise<SongRecommendation[]> {
   if (!GEMINI_API_KEY) return [];
 
@@ -181,6 +189,8 @@ CRITICAL: Respond with ONLY a valid JSON array in this exact format. Do not incl
   }
 ]
 `;
+
+  const inputTokens = estimateTokens(recommendationPrompt);
 
   try {
     // Get Song Ideas from Gemini
@@ -213,6 +223,9 @@ CRITICAL: Respond with ONLY a valid JSON array in this exact format. Do not incl
       console.error("No recommendation text received from Gemini.");
       return [];
     }
+
+    const outputTokens = data.usageMetadata?.candidates_token_count || estimateTokens(recommendationText || "");
+    await checkAndUpdateCredits(userEmail, inputTokens, outputTokens);
 
     let songIdeas = [];
     const jsonMatch = recommendationText.match(/\[[\s\S]*\]/);
@@ -260,12 +273,18 @@ export async function GET() {
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const userEmail = session.user.email;
 
     await connectDB()
 
     const moodAnalysis = await getCurrentMoodAnalysis(session.user.id || "", session.user.email)
 
-    const songs = await generateSongRecommendations(moodAnalysis.mood, moodAnalysis.score, moodAnalysis.emotions)
+    const songs = await generateSongRecommendations(
+      moodAnalysis.mood,
+      moodAnalysis.score,
+      moodAnalysis.emotions,
+      userEmail
+    )
 
     const recommendations: DailyRecommendations = {
       date: new Date().toISOString().split("T")[0],
@@ -288,6 +307,7 @@ export async function POST(request: Request) {
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const userEmail = session.user.email;
 
     await connectDB()
 
@@ -317,7 +337,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Mood is required" }, { status: 400 })
     }
 
-    const songs = await generateSongRecommendations(mood, 0, emotions || ["neutral"])
+    const songs = await generateSongRecommendations(mood, 0, emotions || ["neutral"], userEmail)
 
     user.recommendationCount += 1
     await user.save()

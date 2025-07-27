@@ -6,7 +6,14 @@ import Message from "@/lib/models/Message"
 import JournalEntry from "@/lib/models/JournalEntry"
 import User from "@/lib/models/User"
 
+//credit checker
+import { checkAndUpdateCredits } from "@/lib/middlewares/rate-limiter"
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
 
 interface MoodAnalysis {
   overallMood: string
@@ -20,12 +27,16 @@ interface MoodAnalysis {
   }[]
 }
 
-async function analyzeMoodWithGemini(journalEntries: any[], chatMessages: any[]): Promise<MoodAnalysis> {
+async function analyzeMoodWithGemini(
+  journalEntries: any[], 
+  chatMessages: any[],
+  userEmail: string
+): Promise<MoodAnalysis> {
   if (!GEMINI_API_KEY) {
     throw new Error("Gemini API key not configured")
   }
 
-  // Prepare data for analysis
+  //data for analysis
   const recentJournals = journalEntries.slice(-10).map((entry) => ({
     date: entry.createdAt.toISOString().split("T")[0],
     content: entry.content,
@@ -71,6 +82,8 @@ Focus on:
 Be empathetic, insightful, and constructive in your analysis.
 `
 
+  const inputTokens = estimateTokens(analysisPrompt);
+
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemma-3n-e2b-it:generateContent?key=${GEMINI_API_KEY}`,
@@ -101,6 +114,9 @@ Be empathetic, insightful, and constructive in your analysis.
 
     const data = await response.json()
     const analysisText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+
+    const outputTokens = data.usageMetadata?.candidates_token_count || estimateTokens(analysisText || "");
+    await checkAndUpdateCredits(userEmail, inputTokens, outputTokens);
 
     if (!analysisText) {
       throw new Error("No analysis received from Gemini")
@@ -133,6 +149,7 @@ export async function GET() {
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const userEmail = session.user.email;
 
     await connectDB()
 
@@ -159,7 +176,7 @@ export async function GET() {
     }).sort({ timestamp: -1 })
 
     // Analyze mood using Gemini
-    const moodAnalysis = await analyzeMoodWithGemini(journalEntries, chatMessages)
+    const moodAnalysis = await analyzeMoodWithGemini(journalEntries, chatMessages, userEmail)
 
     // Calculate statistics
     const stats = {

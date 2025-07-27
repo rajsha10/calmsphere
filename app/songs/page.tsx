@@ -21,6 +21,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 
+//credits
+import { useCredits } from "@/context/CreditContext";
+import { toast } from "sonner"
+
 interface SongRecommendation {
   title: string
   artist: string
@@ -46,6 +50,7 @@ export default function SongsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null)
+  const { setCredits, setInitialised } = useCredits();
 
   useEffect(() => {
     if (status === "loading") return
@@ -67,10 +72,34 @@ export default function SongsPage() {
 
       if (response.ok) {
         const data = await response.json()
+
+        if (data.creditError) {
+          toast.error("Credit Limit Reached", {
+            description: data.creditError,
+          });
+        }
+  
+        if (data.credits) {
+          setCredits(data.credits);
+          setInitialised(true);
+        }
+
         setRecommendations(data)
         localStorage.setItem(storageKey, JSON.stringify(data))
       } else if (response.status === 429) {
         const data = await response.json()
+        
+        if (data.creditError) {
+          toast.error("Credit Limit Reached", {
+            description: data.creditError,
+          });
+        }
+  
+        if (data.credits) {
+          setCredits(data.credits);
+          setInitialised(true);
+        }
+
         alert(data.error || "You have reached your daily generation limit.")
         const cachedData = localStorage.getItem(storageKey)
         if (cachedData) {

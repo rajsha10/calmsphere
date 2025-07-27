@@ -29,6 +29,10 @@ import { Badge } from "@/components/ui/badge"
 
 import { useRefresh } from "@/context/RefreshContext"
 
+//credits
+import { useCredits } from "@/context/CreditContext";
+import { toast } from "sonner"
+
 const journalPrompts = [
   "What am I most grateful for today?",
   "How did I show kindness to myself or others?",
@@ -61,6 +65,7 @@ export default function JournalPage() {
   const [showNewEntry, setShowNewEntry] = useState(false)
   const [wordCount, setWordCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const { setCredits, setInitialised } = useCredits();
 
   const { triggerRefresh } = useRefresh()
   
@@ -163,6 +168,17 @@ export default function JournalPage() {
       })
       
       const data = await response.json()
+
+      if (data.creditError) {
+        toast.error("Credit Limit Reached", {
+          description: data.creditError,
+        });
+      }
+
+      if (data.credits) {
+        setCredits(data.credits);
+        setInitialised(true);
+      }
       
       clearInterval(thinkingInterval)
       

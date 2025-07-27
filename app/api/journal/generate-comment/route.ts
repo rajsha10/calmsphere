@@ -3,8 +3,16 @@ import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
+//credit limit
+
+import { checkAndUpdateCredits } from "@/lib/middlewares/rate-limiter"
+
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "")
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
 
 async function getGeminiComment(journalContent: string, prompt?: string): Promise<string> {
   try {
@@ -41,10 +49,10 @@ Please respond to this journal entry with empathy and support:`
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized - Please log in" }, { status: 401 })
     }
+    const userEmail = session.user.email;
 
     const { content, prompt } = await request.json()
 
@@ -52,7 +60,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Content is required" }, { status: 400 })
     }
 
-    // Generate Gemini comment
+    const inputTokens = estimateTokens(content);
+    const estimatedOutputTokens = 150; 
+
+    try {
+      await checkAndUpdateCredits(userEmail, inputTokens, estimatedOutputTokens);
+    } catch (error) {
+      return NextResponse.json({ error: (error as Error).message }, { status: 429 });
+    }
+
+    // Generate comment
     const comment = await getGeminiComment(content.trim(), prompt)
 
     return NextResponse.json({

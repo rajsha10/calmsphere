@@ -40,6 +40,14 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  dailyCreditsUsed: {
+    type: Number,
+    default: 0,
+  },
+  lastApiRequestDate: {
+    type: String,
+    default: new Date().toISOString().split('T')[0],
+  },
   recommendationCount: {
     type: Number,
     default: 0,

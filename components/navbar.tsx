@@ -7,6 +7,8 @@ import { Moon, Sun, Heart, Home, BookOpen, MessageCircle, LayoutDashboard, LogOu
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Clock } from "@/components/clock"
+import { CreditUsageIndicator } from "./credit-usage-indicator"
+
 import { useSession, signOut } from "next-auth/react"
 
 export function Navbar() {
@@ -73,6 +75,9 @@ export function Navbar() {
 
             {/* Right side - Clock, Theme Toggle, and Desktop Logout */}
             <div className="flex items-center space-x-4">
+              <div className="hidden md:block">
+                <CreditUsageIndicator />
+              </div>
               <div className="hidden sm:block">
                 <Clock />
               </div>
@@ -143,6 +148,7 @@ export function Navbar() {
           <div className="px-4 py-6 space-y-4">
             {/* Mobile Clock */}
             <div className="sm:hidden flex justify-center pb-4 border-b border-pink-100 dark:border-purple-800">
+              <CreditUsageIndicator />
               <Clock />
             </div>
 

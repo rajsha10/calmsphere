@@ -28,6 +28,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 
+//credits
+import { useCredits } from "@/context/CreditContext";
+import { toast } from "sonner"
+
 interface DashboardData {
   moodAnalysis: {
     overallMood: string
@@ -64,8 +68,8 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
-
   const { needsRefresh, resetRefresh } = useRefresh()
+  const { setCredits, setInitialised } = useCredits();
 
   useEffect(() => {
     if (status === "loading") return
@@ -82,6 +86,18 @@ export default function DashboardPage() {
       const response = await fetch("/api/dashboard")
       if (response.ok) {
         const data = await response.json()
+
+        if (data.creditError) {
+          toast.error("Credit Limit Reached", {
+            description: data.creditError,
+          });
+        }
+  
+        if (data.credits) {
+          setCredits(data.credits);
+          setInitialised(true);
+        }
+        
         setDashboardData(data)
         setLastRefresh(new Date())
       }

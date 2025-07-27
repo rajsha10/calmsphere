@@ -10,6 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { supportedLanguages } from "@/lib/prompt"
 
+//credits
+import { useCredits } from "@/context/CreditContext";
+import { toast } from "sonner"
+
 interface Message {
   id: string
   content: string
@@ -140,7 +144,8 @@ export default function ChatbotPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [selectedLanguage, setSelectedLanguage] = useState("English")
-  const [isTyping, setIsTyping] = useState(false)
+  const [isTyping, setIsTyping] = useState(false);
+  const { setCredits, setInitialised } = useCredits();
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
@@ -247,6 +252,18 @@ export default function ChatbotPage() {
       if (!response.ok) throw new Error("API response was not ok.")
       
       const data = await response.json()
+
+      if (data.creditError) {
+        toast.error("Credit Limit Reached", {
+          description: data.creditError,
+        });
+      }
+
+      if (data.credits) {
+        setCredits(data.credits);
+        setInitialised(true);
+      }
+
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: data.response,

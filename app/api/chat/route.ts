@@ -5,9 +5,15 @@ import connectDB from "@/lib/mongodb"
 import Message from "@/lib/models/Message"
 import { getScystemPrompt } from "@/lib/prompt"
 
+//credits
+import { checkAndUpdateCredits } from "@/lib/middlewares/rate-limiter"
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 
-// Helper function to detect if user is asking about their conversation history
+function estimateTokens(text: string) {
+  return Math.ceil(text.length / 4);
+}
+
 function isHistoryQuestion(message: string): boolean {
   const historyKeywords = [
     'what did i', 'what have i', 'did i tell you', 'did i mention', 'did i say',
@@ -32,7 +38,7 @@ async function getRelevantHistory(userId: string, query: string, limit: number =
     .limit(limit)
     .lean()
   
-  return recentMessages.reverse() // Return in chronological order
+  return recentMessages.reverse()
 }
 
 // Helper function to extract key topics and emotions from conversation history
@@ -61,6 +67,12 @@ export async function POST(request: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userEmail = session.user.email;
 
     const { message, language = "English", conversationHistory = [] } = await request.json()
 
@@ -137,14 +149,22 @@ Mindsphere (analyzing your conversation history):`
       Human: ${message}
       Mindsphere:`
     }
+    const inputTokens = estimateTokens(contextualPrompt);
 
-    // Save user message to DB
-    const userMessageDoc = new Message({
-      userId: session.user?.email,
+    const userMessageToSave = new Message({
+      userId: userEmail,
       sender: "user",
       content: message,
-    })
-    await userMessageDoc.save()
+    });
+    await userMessageToSave.save();
+
+    const estimatedOutputTokens = 200; 
+
+    try {
+      await checkAndUpdateCredits(userEmail, inputTokens, estimatedOutputTokens);
+    } catch (error) {
+      return NextResponse.json({ error: (error as Error).message }, { status: 429 });
+    }
 
     // Send request to Gemini API - CORRECTED FORMAT
     const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemma-3n-e2b-it:generateContent?key=${GEMINI_API_KEY}`, {
@@ -180,18 +200,31 @@ Mindsphere (analyzing your conversation history):`
     }
       
     const reply = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "💜 I'm here for you."
+    const outputTokens = geminiData.usageMetadata?.candidates_token_count || estimateTokens(reply);
+    
+    let credits;
+    try {
+      credits = await checkAndUpdateCredits(userEmail, inputTokens, outputTokens);
+    } catch (error) {
+      return NextResponse.json({ 
+        response: reply,
+        creditError: (error as Error).message
+      });
+    }
 
     // Save bot response to DB
     const botMessageDoc = new Message({
-      userId: session.user?.email,
+      userId: userEmail,
       sender: "bot",
       content: reply,
-    })
-    await botMessageDoc.save()
+    });
+    await botMessageDoc.save();
 
-    return NextResponse.json({ response: reply })
+    return NextResponse.json({ response: reply, credits });
   } catch (error) {
-    console.error("Error in chat route:", error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+    console.error("Error in chat route:", error);
+    const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
+    const status = (error as any).status || 500;
+    return NextResponse.json({ error: errorMessage }, { status });
   }
 }
