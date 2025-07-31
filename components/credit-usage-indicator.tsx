@@ -16,7 +16,7 @@ export function CreditUsageIndicator() {
     return(
         <div className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300">
             <Zap className="h-4 w-4 text-yellow-500" />
-            <span>{credits.remaining.toLocaleString()}</span>
+            <span>{credits.remaining}</span>
             <Progress value={percentage} className="w-20 h-1.5" />
         </div>
     );

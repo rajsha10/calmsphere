@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     }
 
     const customPrompt = `
-Generate 4 YouTube song recommendations for someone feeling ${mood}.
+Generate 4 Indian YouTube song recommendations for someone feeling ${mood}.
 
 ${genre ? `Preferred genre: ${genre}` : ""}
 ${energy ? `Energy level: ${energy}` : ""}

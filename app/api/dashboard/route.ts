@@ -131,8 +131,11 @@ Be empathetic, insightful, and constructive in your analysis.
     const analysis = JSON.parse(jsonMatch[0])
     return analysis
   } catch (error) {
-    console.error("Mood analysis error:", error)
-    // Fallback analysis
+    // If the error is a credit limit error, re-throw it to be handled by the GET handler.
+    if (error instanceof Error && error.message.includes("Credit limit")) {
+        throw error;
+    }
+    // Fallback for other errors during mood analysis
     return {
       overallMood: "Neutral",
       moodScore: 0,
@@ -175,10 +178,7 @@ export async function GET() {
       timestamp: { $gte: thirtyDaysAgo },
     }).sort({ timestamp: -1 })
 
-    // Analyze mood using Gemini
-    const moodAnalysis = await analyzeMoodWithGemini(journalEntries, chatMessages, userEmail)
-
-    // Calculate statistics
+    // Calculate stats and recent activities before the mood analysis
     const stats = {
       totalJournalEntries: journalEntries.length,
       totalChatMessages: chatMessages.filter((m) => m.sender === "user").length,
@@ -188,7 +188,6 @@ export async function GET() {
       mostActiveDay: getMostActiveDay(journalEntries, chatMessages),
     }
 
-    // Get recent activities
     const recentActivities = [
       ...journalEntries.slice(0, 5).map((entry) => ({
         type: "journal",
@@ -208,6 +207,31 @@ export async function GET() {
     ]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 8)
+
+    let moodAnalysis;
+    try {
+      // Attempt to get the mood analysis
+      moodAnalysis = await analyzeMoodWithGemini(journalEntries, chatMessages, userEmail);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("Credit limit")) {
+        // If credit limit is reached, return all other data with a creditError message
+        return NextResponse.json({
+          creditError: "You have reached your mood analysis limit. Please upgrade to Premium for unlimited insights.",
+          stats,
+          recentActivities,
+          moodAnalysis: {
+            overallMood: "Limit Reached",
+            moodScore: 0,
+            emotions: [],
+            insights: ["Upgrade to Premium to continue receiving your mood analysis."],
+            trends: [],
+          },
+          lastUpdated: new Date().toISOString(),
+        });
+      }
+      // For any other error from mood analysis, let the main error handler catch it
+      throw error;
+    }
 
     return NextResponse.json({
       moodAnalysis,

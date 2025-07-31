@@ -80,7 +80,6 @@ Respond with only a JSON object:
   "emotions": ["array", "of", "2-4", "emotions"]
 }
 `
-
   try {
     const response = await fetch(
       // `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`,

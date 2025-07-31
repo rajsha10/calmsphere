@@ -114,36 +114,30 @@ export default function SignupPage() {
   }
 
   const handleCompleteSignup = async (e: React.FormEvent) => {
-    e.preventDefault()
-
+    e.preventDefault();
+  
     if (password !== confirmPassword) {
-      setError("Passwords do not match")
-      return
+      setError("Passwords do not match");
+      return;
     }
-
+  
     if (password.length < 6) {
-      setError("Password must be at least 6 characters long")
-      return
+      setError("Password must be at least 6 characters long");
+      return;
     }
-
+  
     if (!name.trim()) {
-      setError("Please enter your name")
-      return
+      setError("Please enter your name");
+      return;
     }
-
-    setIsLoading(true)
-    setError("")
-    setSuccess("")
-
-    console.log("=== COMPLETING SIGNUP ===")
-    console.log("Final data:", {
-      email: email.trim().toLowerCase(),
-      otp,
-      name: name.trim(),
-      hasPassword: !!password,
-    })
-
+  
+    setIsLoading(true);
+    setError("");
+    setSuccess("");
+  
     try {
+      // Changed from '/api/auth/signup' to '/api/auth/verify-otp'
+      // This will complete the signup with name and password
       const response = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -153,37 +147,27 @@ export default function SignupPage() {
           purpose: "signup",
           name: name.trim(),
           password,
+          // Remove checkOnly flag to complete the signup
         }),
-      })
-
-      const data = await response.json()
-      console.log("Complete signup response:", data)
-
+      });
+  
+      const data = await response.json();
+  
       if (response.ok) {
-        setSuccess("Account created successfully! Redirecting to login...")
+        setSuccess("Account created successfully! Redirecting to login...");
         setTimeout(() => {
-          router.push("/login?message=Account created successfully")
-        }, 2000)
+          router.push("/login?message=Account created successfully");
+        }, 2000);
       } else {
-        setError(data.error || "Failed to create account")
-
-        // If OTP related error, go back to OTP step
-        if (
-          data.error?.includes("verification code") ||
-          data.error?.includes("expired") ||
-          data.error?.includes("Invalid")
-        ) {
-          setStep("otp")
-          setOtp("")
-        }
+        setError(data.error || "Failed to create account");
       }
     } catch (error) {
-      console.error("Complete signup error:", error)
-      setError("Network error. Please try again.")
+      console.error("Complete signup error:", error);
+      setError("Network error. Please try again.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const resendOTP = async () => {
     if (countdown > 0) return

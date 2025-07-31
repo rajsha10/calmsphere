@@ -279,6 +279,7 @@ export default function ChatbotPage() {
 
     } catch (error) {
       console.error("Chat error:", error)
+      
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: "I apologize, but I'm having some trouble connecting. Please try again in a moment. ❤️",

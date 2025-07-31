@@ -64,66 +64,38 @@ export async function POST(request: NextRequest) {
     })
 
     if (purpose === "signup") {
-      // Check if user is already verified
-      if (user.isVerified) {
-        console.log("❌ User already verified")
-        return NextResponse.json({ error: "Account is already verified. Please sign in." }, { status: 400 })
-      }
-
-      // Verify signup OTP
-      if (!user.otpCode) {
-        console.log("❌ No OTP code found for user")
-        return NextResponse.json({ error: "No verification code found. Please request a new one." }, { status: 400 })
-      }
-
-      const providedOTP = otp.toString().trim()
-      const storedOTP = user.otpCode.toString().trim()
-
-      console.log("OTP Comparison:", {
-        provided: providedOTP,
-        stored: storedOTP,
-        match: providedOTP === storedOTP,
-      })
-
-      if (storedOTP !== providedOTP) {
-        console.log("❌ OTP mismatch")
-        return NextResponse.json({ error: "Invalid verification code" }, { status: 400 })
-      }
-
-      if (!user.otpExpiry || user.otpExpiry < new Date()) {
-        await User.findOneAndUpdate({ email }, { otpCode: null, otpExpiry: null })
-        return NextResponse.json({ error: "Verification code has expired." }, { status: 400 })
-      }      
-
       if (!name || !password) {
-        console.log("❌ Missing name or password for signup")
-        return NextResponse.json({ error: "Name and password are required" }, { status: 400 })
+        return NextResponse.json({ error: "Name and password are required to complete signup" }, { status: 400 });
       }
-
-      if (password.length < 6) {
-        console.log("❌ Password too short")
-        return NextResponse.json({ error: "Password must be at least 6 characters long" }, { status: 400 })
-      }
-
-      // Hash password and complete signup
-      const hashedPassword = await bcrypt.hash(password, 12)
-
+    
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 12);
+    
       const updatedUser = await User.findOneAndUpdate(
         { email },
         {
-          otpCode: otp,
-          otpExpiry,
-          isVerified: false,
+          $set: {
+            name: name,            
+            password: hashedPassword,
+            isVerified: true,
+            otpCode: null,
+            otpExpiry: null,
+          },
         },
-        { upsert: true, new: true }
-      )      
-
-      console.log("✅ User signup completed:", updatedUser.email)
-
+        { new: true } // Return the updated document
+      );
+    
+      // Check if the update was successful
+      if (!updatedUser) {
+        return NextResponse.json({ error: "Failed to complete signup. User not found." }, { status: 404 });
+      }
+    
+      console.log("✅ Signup complete for:", updatedUser.email);
+    
       return NextResponse.json({
         success: true,
-        message: "Account verified successfully! You can now sign in.",
-      })
+        message: "Account created successfully!",
+      });
     } else if (purpose === "reset") {
       // Verify reset password OTP
       if (!user.resetPasswordToken) {

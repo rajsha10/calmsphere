@@ -209,7 +209,7 @@ Mindsphere (analyzing your conversation history):`
       return NextResponse.json({ 
         response: reply,
         creditError: (error as Error).message
-      });
+      }, { status: 429 });
     }
 
     // Save bot response to DB
