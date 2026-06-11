@@ -16,8 +16,8 @@ function estimateTokens(text: string): number {
 
 async function getGeminiComment(journalContent: string, prompt?: string): Promise<string> {
   try {
-    // Using Gemma 3n E2B model
-    const model = genAI.getGenerativeModel({ model: "gemma-3n-e2b-it" })
+    // Using Gemma 4 31B model
+    const model = genAI.getGenerativeModel({ model: "gemma-4-31b-it" })
 
     const systemPrompt = `You are a compassionate and supportive AI journal companion. Your role is to provide thoughtful, empathetic, and encouraging responses to journal entries. 
 

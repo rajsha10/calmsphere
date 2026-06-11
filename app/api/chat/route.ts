@@ -167,7 +167,7 @@ Mindsphere (analyzing your conversation history):`
     }
 
     // Send request to Gemini API - CORRECTED FORMAT
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemma-3n-e2b-it:generateContent?key=${GEMINI_API_KEY}`, {
+    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent?key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
