@@ -97,22 +97,22 @@ export async function POST(request: NextRequest) {
       conversationContext = fullHistory
         .map((msg: any) => {
           const timestamp = new Date(msg.timestamp).toLocaleString()
-          return `[${timestamp}] ${msg.sender === "user" ? "You" : "Mindsphere"}: ${msg.content}`
+          return `[${timestamp}] ${msg.sender === "user" ? "Human" : "Calm Sphere / Mindsphere"}: ${msg.content}`
         })
         .join("\n")
 
       contextualPrompt = `${systemPrompt}
       
-You are Mindsphere, analyzing the user's conversation history. The user is asking about their past conversations with you.
+You are Calm Sphere / Mindsphere, analyzing the user's conversation history. The user is asking about their past conversations with you.
 
 IMPORTANT INSTRUCTIONS:
-- You have access to the user's complete conversation history below
-- Answer questions about what they discussed, shared emotions, topics covered, or any patterns you notice
-- Be specific and reference actual conversations when possible
-- Include timestamps when relevant
-- Maintain your warm, supportive tone even when analyzing data
-- If they ask about emotions or feelings they shared, be empathetic in your response
-- Provide insights that could be helpful for their self-reflection or growth
+- You have access to the user's complete conversation history below.
+- Answer questions about what they discussed, shared emotions, topics covered, or any patterns you notice.
+- Be specific and reference actual conversations when possible.
+- Include timestamps when relevant.
+- Maintain your warm, supportive, human-like counselor tone even when analyzing data. Never say "As an AI..." or "Based on my database..."
+- If they ask about emotions or feelings they shared, be empathetic in your response.
+- Provide insights that could be helpful for their self-reflection or growth.
 
 ${historyAnalysis}
 
@@ -121,33 +121,27 @@ ${conversationContext}
 
 Current question about conversation history: ${message}
 
-Mindsphere (analyzing your conversation history):`
+Calm Sphere / Mindsphere (analyzing conversation history):`
 
     } else {
       // Normal conversation flow with recent context
       conversationContext = conversationHistory
-        .slice(-6)
-        .map((msg: any) => `${msg.sender === "user" ? "Human" : "Mindsphere"}: ${msg.content}`)
+        .slice(-8)
+        .map((msg: any) => `${msg.sender === "user" ? "Human" : "Calm Sphere / Mindsphere"}: ${msg.content}`)
         .join("\n")
 
       contextualPrompt = `${systemPrompt}
-      Please understand and respond in ${language}, even if the message is typed in English letters or phonetics.
 
-      You are Mindsphere, a warm and emotionally supportive AI companion. Your tone must always be gentle, compassionate, and calming. Speak like a kind friend who listens deeply and responds thoughtfully.
+Please understand and respond in ${language}, even if the message is typed in English letters or phonetics.
 
-      💬 If the user shares emotions (e.g., anxious, sad, joyful), respond with empathy and suggest something helpful like breathing exercises, journaling prompts, or a kind affirmation.
+🎵 Only if the mood truly calls for it (such as deep sadness, anxiety, or celebration), you may suggest a calming or uplifting real YouTube song link. Format it like this: 
+🎶 Here's a song that might help you right now: [YouTube link]
+Do NOT recommend a song every time. Only do so when it feels emotionally appropriate.
 
-      🎵 Only if the mood truly calls for it (such as deep sadness, anxiety, or celebration), you may suggest a calming or uplifting real YouTube song link. Format it like this: 
-      🎶 Here's a song that might help you right now: [YouTube link]
-
-      Do **not** recommend a song every time. Only do so when it feels emotionally appropriate.
-
-      Keep your messages short, heartfelt, and natural.
-
-      Previous conversation:
-      ${conversationContext}
-      Human: ${message}
-      Mindsphere:`
+Previous conversation:
+${conversationContext}
+Human: ${message}
+Calm Sphere / Mindsphere:`
     }
     const inputTokens = estimateTokens(contextualPrompt);
 
@@ -199,7 +193,9 @@ Mindsphere (analyzing your conversation history):`
       throw new Error(`Gemini API error: ${geminiRes.status}`)
     }
       
-    const reply = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "💜 I'm here for you."
+    const parts = geminiData?.candidates?.[0]?.content?.parts || []
+    const textPart = parts.find((part: any) => !part.thought) || parts[parts.length - 1]
+    const reply = textPart?.text?.trim() || "💜 I'm here for you."
     const outputTokens = geminiData.usageMetadata?.candidates_token_count || estimateTokens(reply);
     
     let credits;

@@ -209,28 +209,38 @@ export async function GET() {
       .slice(0, 8)
 
     let moodAnalysis;
-    try {
-      // Attempt to get the mood analysis
-      moodAnalysis = await analyzeMoodWithGemini(journalEntries, chatMessages, userEmail);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("Credit limit")) {
-        // If credit limit is reached, return all other data with a creditError message
-        return NextResponse.json({
-          creditError: "You have reached your mood analysis limit. Please upgrade to Premium for unlimited insights.",
-          stats,
-          recentActivities,
-          moodAnalysis: {
-            overallMood: "Limit Reached",
-            moodScore: 0,
-            emotions: [],
-            insights: ["Upgrade to Premium to continue receiving your mood analysis."],
-            trends: [],
-          },
-          lastUpdated: new Date().toISOString(),
-        });
+    if (journalEntries.length === 0 && chatMessages.length === 0) {
+      moodAnalysis = {
+        overallMood: "Neutral",
+        moodScore: 0,
+        emotions: ["calm", "reflective"],
+        insights: ["Start journaling or chatting with the AI bot to get personalized mood insights and wellness analysis."],
+        trends: [],
+      };
+    } else {
+      try {
+        // Attempt to get the mood analysis
+        moodAnalysis = await analyzeMoodWithGemini(journalEntries, chatMessages, userEmail);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("Credit limit")) {
+          // If credit limit is reached, return all other data with a creditError message
+          return NextResponse.json({
+            creditError: "You have reached your mood analysis limit. Please upgrade to Premium for unlimited insights.",
+            stats,
+            recentActivities,
+            moodAnalysis: {
+              overallMood: "Limit Reached",
+              moodScore: 0,
+              emotions: [],
+              insights: ["Upgrade to Premium to continue receiving your mood analysis."],
+              trends: [],
+            },
+            lastUpdated: new Date().toISOString(),
+          });
+        }
+        // For any other error from mood analysis, let the main error handler catch it
+        throw error;
       }
-      // For any other error from mood analysis, let the main error handler catch it
-      throw error;
     }
 
     return NextResponse.json({
